@@ -43,6 +43,8 @@
                    :win    win})))
 
 (defn open-url-handler
+  "win - the main window instance (first renderer process)
+   url - the input URL"
   [win url]
   (.info logger "open-url" (str {:url url}))
 
@@ -59,7 +61,7 @@
    (fn [^js request callback]
      (let [url (.-url request)
            path (string/replace url "assets://" "")
-           path (js/decodeURIComponent path)]
+           path (js/decodeURI path)]
        (callback #js {:path path}))))
 
   (.registerFileProtocol

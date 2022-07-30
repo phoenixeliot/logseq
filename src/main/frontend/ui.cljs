@@ -900,6 +900,18 @@
      label-right]]
    (progress-bar width)])
 
+(rum/defc lazy-loading-placeholder
+  []
+  [:div.shadow.rounded-md.p-4.w-full.mx-auto.mb-5.fade-in {:style {:height 88}}
+   [:div.animate-pulse.flex.space-x-4
+    [:div.flex-1.space-y-3.py-1
+     [:div.h-2.bg-base-4.rounded]
+     [:div.space-y-3
+      [:div.grid.grid-cols-3.gap-4
+       [:div.h-2.bg-base-4.rounded.col-span-2]
+       [:div.h-2.bg-base-4.rounded.col-span-1]]
+      [:div.h-2.bg-base-4.rounded]]]]])
+
 (rum/defcs lazy-visible-inner
   [state visible? content-fn ref]
   [:div.lazy-visibility
@@ -911,23 +923,26 @@
         {:ref #(when-let [^js cls (and % (.-classList %))]
                  (.add cls "fade-enter-active"))}
         (content-fn)])
-     [:div.shadow.rounded-md.p-4.w-full.mx-auto.mb-5.fade-in {:style {:height 88}}
-      [:div.animate-pulse.flex.space-x-4
-       [:div.flex-1.space-y-3.py-1
-        [:div.h-2.bg-base-4.rounded]
-        [:div.space-y-3
-         [:div.grid.grid-cols-3.gap-4
-          [:div.h-2.bg-base-4.rounded.col-span-2]
-          [:div.h-2.bg-base-4.rounded.col-span-1]]
-         [:div.h-2.bg-base-4.rounded]]]]])])
+     (lazy-loading-placeholder))])
 
 (rum/defc lazy-visible
-  [content-fn]
-  (let [[hasBeenSeen setHasBeenSeen] (rum/use-state false)
-        inViewState (useInView #js {:rootMargin "100px"
-                                    :onChange (fn [v entry]
-                                                (let [self-top (.-top (.-boundingClientRect entry))
-                                                      v (if v v (if (> self-top 0) false true))]
-                                                  (setHasBeenSeen v)))})
-        ref (.-ref inViewState)]
-    (lazy-visible-inner hasBeenSeen content-fn ref)))
+  ([content-fn]
+   (lazy-visible content-fn nil))
+  ([content-fn _debug-id]
+   (if (or (util/mobile?) (mobile-util/native-platform?))
+     (content-fn)
+     (let [[hasBeenSeen setHasBeenSeen] (rum/use-state false)
+           [last-changed-time set-last-changed-time!] (rum/use-state nil)
+           inViewState (useInView #js {:rootMargin "100px"
+                                       :onChange (fn [in-view? entry]
+                                                   (let [self-top (.-top (.-boundingClientRect entry))
+                                                         time' (util/time-ms)]
+                                                     (when (or in-view?
+                                                               (and
+                                                                (nil? last-changed-time)
+                                                                (> (- time' last-changed-time) 50)
+                                                                (<= self-top 0)))
+                                                       (set-last-changed-time! time')
+                                                       (setHasBeenSeen in-view?))))})
+           ref (.-ref inViewState)]
+       (lazy-visible-inner hasBeenSeen content-fn ref)))))
