@@ -103,11 +103,15 @@
       :month (util/zero-pad month)
       :day (util/zero-pad day)})))
 
+(defn user-adjusted-date
+  [date]
+  (t/minus date (t/hours (state/get-start-of-day-offset))))
+
 (defn journal-name
   ([]
-   (journal-name (tl/local-now)))
+   (journal-name (user-adjusted-date (tl/local-now))))
   ([date]
-   (date-time-util/format date (state/get-date-formatter))))
+   (date-time-util/format (user-adjusted-date date) (state/get-date-formatter))))
 
 (defn journal-name-s [s]
   (try
@@ -119,15 +123,31 @@
 
 (defn today
   []
-  (journal-name))
+  (journal-name (tl/local-now)))
 
 (defn tomorrow
   []
-  (journal-name (t/plus (t/today) (t/days 1))))
+  (journal-name (t/plus (tl/local-now) (t/days 1))))
 
 (defn yesterday
   []
-  (journal-name (t/minus (t/today) (t/days 1))))
+  (journal-name (t/minus (tl/local-now) (t/days 1))))
+
+;; (defn user-adjusted-today
+;;   []
+;;   (journal-name ((tl/local-now))))
+;; 
+;; (defn user-adjusted-tomorrow
+;;   []
+;;   (journal-name (t/plus
+;;                  (user-adjusted-date (tl/local-now))
+;;                  (t/days 1))))
+;; 
+;; (defn user-adjusted-yesterday
+;;   []
+;;   (journal-name (t/minus
+;;                  (user-adjusted-date (tl/local-now))
+;;                  (t/days 1))))
 
 (defn ymd
   ([]

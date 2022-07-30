@@ -80,6 +80,7 @@
      :on-load (fn []
                 (page-handler/load-more-journals!))})])
 
+;; This fetches the list of all journals
 (rum/defc all-journals < rum/reactive db-mixins/query
   []
   (let [journals-length (state/sub :journals-length)

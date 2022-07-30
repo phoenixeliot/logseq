@@ -1400,6 +1400,14 @@
     (get-in @state [:me :settings :start-of-week])
     6))
 
+(defn get-start-of-day-offset
+  []
+  (or
+    (when-let [repo (get-current-repo)]
+      (get-in @state [:config repo :start-of-day-offset]))
+    (get-in @state [:me :settings :start-of-day-offset])
+    0))
+
 (defn get-ref-open-blocks-level
   []
   (or

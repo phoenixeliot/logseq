@@ -5,6 +5,7 @@
             [frontend.state :as state]
             [frontend.util :as util]))
 
+;; Do I need to update this? Figure out what context it's used.
 (defn- variable-rules
   []
   {"today" (util/format "[[%s]]" (date/today))

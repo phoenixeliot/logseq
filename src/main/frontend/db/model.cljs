@@ -5,6 +5,8 @@
   (:require [clojure.set :as set]
             [clojure.string :as string]
             [clojure.walk :as walk]
+            [cljs-time.core :as t]
+            [cljs-time.local :as tl]
             [datascript.core :as d]
             [frontend.config :as config]
             [frontend.date :as date]
@@ -1040,9 +1042,8 @@
    (get-latest-journals (state/get-current-repo) n))
   ([repo-url n]
    (when (conn/get-db repo-url)
-     (let [date (js/Date.)
-           _ (.setDate date (- (.getDate date) (dec n)))
-           today (db-utils/date->int (js/Date.))]
+    ;;  TODO: Use user-adjusted-today or one of the other ones I modified to DRY this out
+     (let [today (db-utils/date->int (t/minus (tl/local-now) (t/hours (state/get-start-of-day-offset))))]
        (->>
         (react/q repo-url [:frontend.db.react/journals] {:use-cache? false}
                  '[:find [(pull ?page [*]) ...]
