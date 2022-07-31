@@ -267,8 +267,23 @@ test('undo after starting an action should close the action menu', async ({ page
   }
 })
 
-// exit action menu if you move your cursor outside of the trigger area (eg outside of the [[]]). Maybe if you just move the cursor at all?
-test('moving cursor outside of brackets should close action menu', async ({ page, block }) => {
+test('moving cursor before brackets should close action menu', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustType('text1 ')
+    await page.waitForTimeout(550)
+    await page.keyboard.type(commandTrigger)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.press('ArrowLeft')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).not.toBeVisible()
+  }
+})
+
+test('moving cursor to after brackets should close action menu', async ({ page, block }) => {
   for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
     await createRandomPage(page)
 
@@ -280,10 +295,95 @@ test('moving cursor outside of brackets should close action menu', async ({ page
     
     await page.waitForTimeout(100)
     // Move cursor outside of the space strictly between the double brackets
-    await page.keyboard.press('ArrowLeft')
+    await page.keyboard.press('ArrowRight')
     await page.waitForTimeout(100)
     await expect(page.locator(`[data-modal-name="${modalName}"]`)).not.toBeVisible()
-    await page.waitForTimeout(1000)
+  }
+})
+
+test('pressing up and down should NOT close action menu', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustType('text1 ')
+    await page.waitForTimeout(550)
+    await page.keyboard.type(commandTrigger)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.press('ArrowUp')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.press('ArrowDown')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+  }
+})
+
+test('moving cursor inside of brackets should NOT close action menu', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustType('text1 ')
+    await page.waitForTimeout(550)
+    await page.keyboard.type(commandTrigger)
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.type("some page search text")
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    // Move cursor outside of the space strictly between the double brackets
+    await page.keyboard.press('ArrowLeft')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+  }
+})
+
+test('selecting text inside of brackets should NOT close action menu', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustType('text1 ')
+    await page.waitForTimeout(550)
+    await page.keyboard.type(commandTrigger)
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.type("some page search text")
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    // Move cursor outside of the space strictly between the double brackets
+    await page.keyboard.press('Shift+ArrowLeft')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+  }
+})
+
+test('pressing backspace and remaining inside of brackets should NOT close action menu', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustType('text1 ')
+    await page.waitForTimeout(550)
+    await page.keyboard.type(commandTrigger)
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.type("some page search text")
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    // Move cursor outside of the space strictly between the double brackets
+    await page.keyboard.press('Backspace')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
   }
 })
 
