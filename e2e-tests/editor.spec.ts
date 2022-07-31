@@ -267,11 +267,11 @@ test('undo after starting an action should close the action menu', async ({ page
   }
 })
 
-test('moving cursor before brackets should close action menu', async ({ page, block }) => {
+test('moving cursor outside of brackets should close action menu', async ({ page, block }) => {
   for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    // First, left arrow
     await createRandomPage(page)
 
-    // Open the action modal
     await block.mustType('text1 ')
     await page.waitForTimeout(550)
     await page.keyboard.type(commandTrigger)
@@ -280,14 +280,10 @@ test('moving cursor before brackets should close action menu', async ({ page, bl
     await page.keyboard.press('ArrowLeft')
     await page.waitForTimeout(100)
     await expect(page.locator(`[data-modal-name="${modalName}"]`)).not.toBeVisible()
-  }
-})
 
-test('moving cursor to after brackets should close action menu', async ({ page, block }) => {
-  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    // Then, right arrow
     await createRandomPage(page)
 
-    // Open the action modal
     await block.mustType('text1 ')
     await page.waitForTimeout(550)
     await page.keyboard.type(commandTrigger)
