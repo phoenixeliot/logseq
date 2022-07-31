@@ -63,7 +63,9 @@
               [:div command-name])))
 
         :on-chosen
-        (fn [chosen-item]
+        (fn [chosen-item] 
+          ;; (editor-handler/save-current-block-tx!)
+          (editor-handler/save-unsaved-edits!)
           (let [command (first chosen-item)]
             (reset! commands/*current-command command)
             (let [command-steps (get (into {} matched) command)

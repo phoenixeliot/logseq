@@ -1289,9 +1289,13 @@
    (save-current-block! {}))
   ([{:keys [force? skip-properties? current-block] :as opts}]
    ;; non English input method
+  ;;  (js/console.log "Checking conditions for saving block")
+  ;;  (js/console.log "not state/get-editor-action" (not (state/editor-in-composition?)))
+  ;;  (js/console.log "(state/get-current-repo)" (state/get-current-repo))
+  ;;  (js/console.log "not (state/get-editor-action)" (not (state/get-editor-action)))
    (when-not (state/editor-in-composition?)
      (when (state/get-current-repo)
-       (when-not (state/get-editor-action)
+       (when-not (state/get-editor-action) ;; TODO: Maybe remove this
          (try
            (let [input-id (state/get-edit-input-id)
                  block (state/get-edit-block)
@@ -1304,6 +1308,7 @@
                  value (if (= (:block/uuid current-block) (:block/uuid block))
                          (:block/content current-block)
                          (and elem (gobj/get elem "value")))]
+            ;;  (js/console.log "Save current block" value)
              (when value
                (cond
                  force?
@@ -1320,6 +1325,15 @@
                  (save-block-aux! db-block value opts))))
            (catch js/Error error
              (log/error :save-block-failed error))))))))
+
+;; NEXT: Resolve redundancy between this, save-current-block! and save-unsaved-edits!.
+;; save-current-block! used to only save if not currently in an "action" state (eg just started typing [[]] or so), but this is wrong/bad IMO since it breaks undo history if you undo while in that state
+(defn save-current-block-tx!
+  []
+  (js/console.log "Saving current block as a transaction")
+  (outliner-tx/transact!
+   {:outliner-op :save-block}
+   (save-current-block!)))
 
 (defn- clean-content!
   [format content]
@@ -1555,11 +1569,15 @@
         (case prefix
           "[["
           (do
+            (js/console.log "typed [[")
+            (save-current-block!)
             (commands/handle-step [:editor/search-page])
             (state/set-editor-action-data! {:pos (cursor/get-caret-pos input)}))
 
           "(("
           (do
+            (js/console.log "typed ((")
+            (save-current-block!)
             (commands/handle-step [:editor/search-block :reference])
             (state/set-editor-action-data! {:pos (cursor/get-caret-pos input)}))
 
@@ -1928,6 +1946,22 @@
          (edit-block! last-block' :max (:block/uuid last-block')))))
    0))
 
+(defn save-unsaved-edits!
+  []
+  (let [last-saved-editing-block (state/get-edit-block)
+        updated-editing-block (when-let [editing-block (state/get-edit-block)]
+                        (some-> (db/pull (:db/id editing-block))
+                                (assoc :block/content (state/get-edit-content))))
+        has-unsaved-edits (and last-saved-editing-block
+                               (not= (:block/content (db/pull (:db/id last-saved-editing-block)))
+                                     (state/get-edit-content)))]
+    ;; (js/console.log "editing-block contents" (:block/content last-saved-editing-block))
+    ;; (js/console.log "state/get-edit-content" (state/get-edit-content))
+    (when has-unsaved-edits
+      (outliner-tx/transact!
+       {:outliner-op :save-block}
+       (outliner-core/save-block! updated-editing-block)))))
+
 (defn paste-blocks
   "Given a vec of blocks, insert them into the target page.
    keep-uuid?: if true, keep the uuid provided in the block structure."
@@ -1940,9 +1974,6 @@
   (let [editing-block (when-let [editing-block (state/get-edit-block)]
                         (some-> (db/pull (:db/id editing-block))
                                 (assoc :block/content (state/get-edit-content))))
-        has-unsaved-edits (and editing-block
-                               (not= (:block/content (db/pull (:db/id editing-block)))
-                                     (state/get-edit-content)))
         target-block (or target-block editing-block)
         block (db/entity (:db/id target-block))
         page (if (:block/name block) block
@@ -1957,10 +1988,6 @@
 
                    :else
                    true)]
-    (when has-unsaved-edits
-      (outliner-tx/transact!
-        {:outliner-op :save-block}
-        (outliner-core/save-block! editing-block)))
     (outliner-tx/transact!
       {:outliner-op :insert-blocks}
       (when target-block
@@ -2587,6 +2614,7 @@
         :else
         (delete-and-update input current-pos (inc current-pos))))))
 
+;; Pin: Need to update this for some new cases
 (defn keydown-backspace-handler
   [cut? e]
   (let [^js input (state/get-input)
@@ -2608,8 +2636,10 @@
         (util/stop e)
         (when cut?
           (js/document.execCommand "copy"))
-        (delete-and-update input selected-start selected-end))
+        (delete-and-update input selected-start selected-end)
+        (save-current-block-tx!)) ;; Save a transaction so undo history is saner
 
+      ;; TODO: Fix this doing wrong behavior if selection starts at beginning of block (only affects iOS, for some reason)
       (zero? current-pos)
       (do
         (util/stop e)
@@ -2828,7 +2858,8 @@
             blank-selected? (string/blank? (util/get-selected-text))
             non-enter-processed? (and is-processed? ;; #3251
                                       (not= code keycode/enter-code))  ;; #3459
-            editor-action (state/get-editor-action)]
+            editor-action (state/get-editor-action)] 
+        (js/console.log "first match?" (= :commands (state/get-editor-action)) "from" (not= k (state/get-editor-command-trigger)) "and" k "!=" (state/get-editor-command-trigger))
         (cond
           (and (= :commands (state/get-editor-action)) (not= k (state/get-editor-command-trigger)))
           (let [matched-commands (get-matched-commands input)]
@@ -2874,6 +2905,7 @@
                     command-step (if (= \# (util/nth-safe value (dec square-pos)))
                                    :editor/search-page-hashtag
                                    :editor/search-page)]
+                (js/console.log "Wrapped by [[]], searching")
                 (commands/handle-step [command-step])
                 (state/set-editor-action-data! {:pos pos}))
 

@@ -1,6 +1,7 @@
 (ns frontend.handler.history
   (:require [frontend.db :as db]
             [frontend.handler.editor :as editor]
+            [frontend.commands :as commands]
             [frontend.modules.editor.undo-redo :as undo-redo]
             [frontend.state :as state]
             [frontend.util :as util]
@@ -20,11 +21,13 @@
 (defn undo!
   [e]
   (util/stop e)
+  (editor/save-unsaved-edits!)
+  ;; (state/set-editor-action! nil) ;; causes weird behavior, prob wrong
   (state/set-editor-op! :undo)
-  (editor/save-current-block!)
   (let [{:keys [editor-cursor]} (undo-redo/undo)]
     (restore-cursor! editor-cursor))
-  (state/set-editor-op! nil))
+  (state/set-editor-op! nil)
+  (commands/restore-state))
 
 (defn redo!
   [e]

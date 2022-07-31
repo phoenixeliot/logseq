@@ -211,3 +211,73 @@ test('copy and paste block after editing new block', async ({ page, block }) => 
 
   await expect(page.locator('text="Typed block"')).toHaveCount(1);
 })
+
+// - Type text1, wait, then text2 [[]], then undo, then redo. Should show text2, maybe also [[]]
+test('undo and redo after starting an action', async ({ page, block }) => {
+  await createRandomPage(page)
+
+  // Get one piece of undo state onto the stack
+  await block.mustFill('text1 ')
+  await page.waitForTimeout(550) // Wait for 500ms autosave period to expire
+  
+  // Then type more, start an action prompt, and undo
+  await page.keyboard.type('text2 [[')
+  if (IsMac) {
+    await page.keyboard.press('Meta+z')
+  } else {
+    await page.keyboard.press('Control+z')
+  }
+  await page.waitForTimeout(100)
+
+  // Should close the action menu when we undo the action prompt
+  await expect(page.locator('text="Search for a page"')).toHaveCount(0)
+
+  // It should undo to the last saved state, and not erase the previous undo action too
+  await expect(page.locator('text="text1"')).toHaveCount(1)
+
+  // And it should keep what was undone as a redo action
+  if (IsMac) {
+    await page.keyboard.press('Meta+Shift+z')
+  } else {
+    await page.keyboard.press('Control+Shift+z')
+  }
+  await expect(page.locator('text="text2"')).toHaveCount(1)
+})
+
+// - Type text1 /today<enter>, then undo. Should show text1. Should close the action menu.
+// test('undo and redo after starting an action', async ({ page, block }) => {
+//   await createRandomPage(page)
+// 
+//   // Get one piece of undo state onto the stack
+//   await block.mustFill('text1 ')
+//   await page.waitForTimeout(550) // Wait for 500ms autosave period to expire
+//   
+//   // Then type more, start an action prompt, and undo
+//   await page.keyboard.type('text2 [[')
+//   if (IsMac) {
+//     await page.keyboard.press('Meta+z')
+//   } else {
+//     await page.keyboard.press('Control+z')
+//   }
+//   await page.waitForTimeout(100)
+// 
+//   // It should undo to the last saved state, and not erase the previous undo action too
+//   await expect(page.locator('text="text1"')).toHaveCount(1)
+// 
+//   if (IsMac) {
+//     await page.keyboard.press('Meta+Shift+z')
+//   } else {
+//     await page.keyboard.press('Control+Shift+z')
+//   }
+//   await expect(page.locator('text="text2"')).toHaveCount(1)
+//   // And it should keep what was undone as a redo action
+// })
+
+// New tests:
+// - regression from my changes so far: sometimes cmd-z leaves `[[]]` around the cursor while removing undone text. Not sure repro steps yet.
+// - (kinda unrelated) exit action menu if you move your cursor outside of the trigger area (eg outside of the [[]]). Maybe if you just move the cursor at all?
+// - (kinda unrelated) type stuff, wait, cmd-a, type stuff, undo -> should go back to empty text first, then previous text. Not directly to previous text
+  // - Maybe do this whenever you do anything to a selection; save an undo state after pressing any input key when a selection is made
+// - (kinda unrelated) type [[]], press escape, should exit action menu without exiting edit mode
+// TODO: What is the code that detects if you press backspace after typing [[]] and cancels the action menu? Can't find it yet.
+// regression: backspace should only delete one character xD
