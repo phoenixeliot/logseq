@@ -331,7 +331,7 @@
                  (on-submit command @input-value pos)))]))))))
 
 (rum/defc absolute-modal < rum/static
-  [cp set-default-width? {:keys [top left rect]}]
+  [cp modal-name set-default-width? {:keys [top left rect]}]
   (let [max-height 370
         max-width 300
         offset-top 24
@@ -376,6 +376,7 @@
                    {:left (if (or (nil? y-diff) (and y-diff (= y-diff 0))) left 0)})))]
     [:div.absolute.rounded-md.shadow-lg.absolute-modal
      {:ref *el
+      :data-modal-name modal-name
       :class (if y-overflow-vh? "is-overflow-vh-y" "")
       :on-mouse-down (fn [e]
                        (.stopPropagation e))
@@ -506,10 +507,10 @@
     (mock-textarea content)))
 
 (rum/defc animated-modal < rum/reactive
-  [key component set-default-width?]
+  [modal-name component set-default-width?]
   (when-let [pos (:pos (state/get-editor-action-data))]
     (ui/css-transition
-     {:key key
+     {:key modal-name
       :class-names {:enter "origin-top-left opacity-0 transform scale-95"
                     :enter-done "origin-top-left transition opacity-100 transform scale-100"
                     :exit "origin-top-left transition opacity-0 transform scale-95"}
@@ -518,6 +519,7 @@
      (fn [_]
        (absolute-modal
         component
+        modal-name
         set-default-width?
         pos)))))
 
