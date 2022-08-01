@@ -384,13 +384,13 @@
      cp]))
 
 (rum/defc transition-cp < rum/reactive
-  [cp set-default-width?]
+  [cp modal-name set-default-width?]
   (when-let [pos (:pos (state/sub :editor/action-data))]
     (ui/css-transition
      {:class-names "fade"
       :timeout     {:enter 500
                     :exit  300}}
-     (absolute-modal cp set-default-width? pos))))
+     (absolute-modal cp modal-name set-default-width? pos))))
 
 (rum/defc image-uploader < rum/reactive
   [id format]
@@ -409,6 +409,7 @@
         [:div.flex.flex-row.align-center.rounded-md.shadow-sm.bg-base-2.px-1.py-1
          (ui/loading
           (util/format "Uploading %s%" (util/format "%2d" processing)))]
+        "upload-file"
         false)))])
 
 (defn- set-up-key-down!
