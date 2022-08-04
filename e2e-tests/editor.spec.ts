@@ -211,3 +211,220 @@ test('copy and paste block after editing new block', async ({ page, block }) => 
 
   await expect(page.locator('text="Typed block"')).toHaveCount(1);
 })
+
+// Type text1, wait, then text2 [[]], then undo, then redo. Should show text2, maybe also [[]]
+test('undo and redo after starting an action', async ({ page, block }) => {
+  await createRandomPage(page)
+
+  // Get one piece of undo state onto the stack
+  await block.mustFill('text1 ')
+  await page.waitForTimeout(550) // Wait for 500ms autosave period to expire
+  
+  // Then type more, start an action prompt, and undo
+  await page.keyboard.type('text2 [[')
+  if (IsMac) {
+    await page.keyboard.press('Meta+z')
+  } else {
+    await page.keyboard.press('Control+z')
+  }
+  await page.waitForTimeout(100)
+
+  // Should close the action menu when we undo the action prompt
+  await expect(page.locator('text="Search for a page"')).toHaveCount(0)
+
+  // It should undo to the last saved state, and not erase the previous undo action too
+  await expect(page.locator('text="text1"')).toHaveCount(1)
+
+  // And it should keep what was undone as a redo action
+  if (IsMac) {
+    await page.keyboard.press('Meta+Shift+z')
+  } else {
+    await page.keyboard.press('Control+Shift+z')
+  }
+  await expect(page.locator('text="text2"')).toHaveCount(1)
+})
+
+// Type text1 /today<enter>, then undo. Should show text1. Should close the action menu.
+test('undo after starting an action should close the action menu', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['/', 'commands'], ['[[', 'page-search']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustType('text1 ')
+    await page.waitForTimeout(550)
+    for (const char of commandTrigger) {
+      await page.keyboard.type(char)
+    }
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+
+    // Undo, removing "/today", and closing the action modal
+    if (IsMac) {
+      await page.keyboard.press('Meta+z')
+    } else {
+      await page.keyboard.press('Control+z')
+    }
+    await page.waitForTimeout(100)
+    await expect(page.locator('text="/today"')).toHaveCount(0)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).not.toBeVisible()
+  }
+})
+
+test('moving cursor outside of brackets should close action menu', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    // First, left arrow
+    await createRandomPage(page)
+
+    await block.mustFill('')
+    await page.waitForTimeout(550)
+    for (const char of commandTrigger) {
+      await page.keyboard.type(char)
+    }
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.press('ArrowLeft')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).not.toBeVisible()
+
+    // Then, right arrow
+    await createRandomPage(page)
+
+    await block.mustFill('text ')
+    await page.waitForTimeout(550)
+    for (const char of commandTrigger) {
+      await page.keyboard.type(char)
+    }
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.waitForTimeout(100)
+    // Move cursor outside of the space strictly between the double brackets
+    await page.keyboard.press('ArrowRight')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).not.toBeVisible()
+  }
+})
+
+test('pressing up and down should NOT close action menu', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustFill('text ')
+    await page.waitForTimeout(550)
+    for (const char of commandTrigger) {
+      await page.keyboard.type(char)
+    }
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.press('ArrowUp')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.press('ArrowDown')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+  }
+})
+
+test('moving cursor inside of brackets should NOT close action menu', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustFill('text ')
+    await page.waitForTimeout(550)
+    for (const char of commandTrigger) {
+      await page.keyboard.type(char)
+    }
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.type("search")
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    // Move cursor outside of the space strictly between the double brackets
+    await page.keyboard.press('ArrowLeft')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+  }
+})
+
+test('selecting text inside of brackets should NOT close action menu', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustFill('text ')
+    await page.waitForTimeout(550)
+    for (const char of commandTrigger) {
+      await page.keyboard.type(char)
+    }
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.type("some page search text")
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    // Move cursor outside of the space strictly between the double brackets
+    await page.keyboard.press('Shift+ArrowLeft')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+  }
+})
+
+test('pressing backspace and remaining inside of brackets should NOT close action menu', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['((', 'block-search']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustFill('text ')
+    await page.waitForTimeout(550)
+    for (const char of commandTrigger) {
+      await page.keyboard.type(char)
+    }
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    await page.keyboard.type("some page search text")
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    
+    // Move cursor outside of the space strictly between the double brackets
+    await page.keyboard.press('Backspace')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+  }
+})
+
+// type [[]], press escape, should exit action menu without exiting edit mode
+test('press escape when action menu is open, should close action menu only', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustFill('text ')
+    await page.waitForTimeout(550)
+    for (const char of commandTrigger) {
+      await page.keyboard.type(char)
+    }
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    await page.waitForTimeout(100)
+    
+    // Press escape; should close action modal instead of exiting edit mode
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).not.toBeVisible()
+    await page.waitForTimeout(1000)
+    expect(await block.isEditing()).toBe(true)
+  }
+})
+
+// New tests:
+// - regression from my changes so far: sometimes cmd-z leaves `[[]]` around the cursor while removing undone text. Not sure repro steps yet.
+// - (kinda unrelated) type stuff, wait, cmd-a, type stuff, undo -> should go back to empty text first, then previous text. Not directly to previous text
+  // - Maybe do this whenever you do anything to a selection; save an undo state after pressing any input key when a selection is made
+// TODO: What is the code that detects if you press backspace after typing [[]] and cancels the action menu? Can't find it yet.
+// - lol, make sure backspace doesn't delete twice (why does this happen sometimes??)
+//   - oh, it's hot reloading. Refreshing fixes it.

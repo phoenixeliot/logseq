@@ -14,8 +14,14 @@
      :on-hide
      (fn [_state e event]
        (let [target (.-target e)]
-         (if (d/has-class? target "bottom-action") ;; FIXME: not particular case
+         (cond
+           (state/get-editor-action)
+           (state/clear-editor-action!)
+
+           (d/has-class? target "bottom-action") ;; FIXME: not particular case
            (.preventDefault e)
+
+           :else
            (let [{:keys [on-hide value]} (editor-handler/get-state)]
              (when on-hide
                (on-hide value event))

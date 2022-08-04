@@ -148,6 +148,7 @@
    (editor-on-paste! id false))
   ([id raw-paste?]
    (fn [e]
+     (editor-handler/save-current-block!)
      (state/set-state! :editor/on-paste? true)
      (let [input (state/get-input)]
        (if raw-paste?

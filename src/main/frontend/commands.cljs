@@ -482,6 +482,7 @@
                          (not beginning-of-line?))
                   (str "\n" value)
                   value)]
+      (js/console.log "handle-step" type input beginning-of-line? value)
       (insert! input-id value option)
       (state/clear-editor-action!))))
 

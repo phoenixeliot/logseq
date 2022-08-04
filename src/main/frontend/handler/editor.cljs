@@ -1291,9 +1291,13 @@
    (save-current-block! {}))
   ([{:keys [force? skip-properties? current-block] :as opts}]
    ;; non English input method
+  ;;  (js/console.log "Checking conditions for saving block")
+  ;;  (js/console.log "not state/get-editor-action" (not (state/editor-in-composition?)))
+  ;;  (js/console.log "(state/get-current-repo)" (state/get-current-repo))
+  ;;  (js/console.log "not (state/get-editor-action)" (not (state/get-editor-action)))
    (when-not (state/editor-in-composition?)
      (when (state/get-current-repo)
-       (when-not (state/get-editor-action)
+       (when-not (state/get-editor-action) ;; TODO: Maybe remove this
          (try
            (let [input-id (state/get-edit-input-id)
                  block (state/get-edit-block)
@@ -1306,6 +1310,7 @@
                  value (if (= (:block/uuid current-block) (:block/uuid block))
                          (:block/content current-block)
                          (and elem (gobj/get elem "value")))]
+            ;;  (js/console.log "Save current block" value)
              (when value
                (cond
                  force?
@@ -1322,6 +1327,15 @@
                  (save-block-aux! db-block value opts))))
            (catch js/Error error
              (log/error :save-block-failed error))))))))
+
+;; NEXT: Resolve redundancy between this, save-current-block! and save-unsaved-edits!.
+;; save-current-block! used to only save if not currently in an "action" state (eg just started typing [[]] or so), but this is wrong/bad IMO since it breaks undo history if you undo while in that state
+(defn save-current-block-tx!
+  []
+  (js/console.log "Saving current block as a transaction")
+  (outliner-tx/transact!
+   {:outliner-op :save-block}
+   (save-current-block!)))
 
 (defn- clean-content!
   [format content]
@@ -1557,11 +1571,15 @@
         (cond
           (= prefix page-ref/left-brackets)
           (do
+            (js/console.log "typed [[")
+            (save-current-block!)
             (commands/handle-step [:editor/search-page])
             (state/set-editor-action-data! {:pos (cursor/get-caret-pos input)}))
 
           (= prefix block-ref/left-parens)
           (do
+            (js/console.log "typed ((")
+            (save-current-block!)
             (commands/handle-step [:editor/search-block :reference])
             (state/set-editor-action-data! {:pos (cursor/get-caret-pos input)})))))))
 
@@ -1926,6 +1944,22 @@
        (let [last-block' (db/pull [:block/uuid (:block/uuid last-block)])]
          (edit-block! last-block' :max (:block/uuid last-block')))))
    0))
+
+(defn save-unsaved-edits!
+  []
+  (let [last-saved-editing-block (state/get-edit-block)
+        updated-editing-block (when-let [editing-block (state/get-edit-block)]
+                        (some-> (db/pull (:db/id editing-block))
+                                (assoc :block/content (state/get-edit-content))))
+        has-unsaved-edits (and last-saved-editing-block
+                               (not= (:block/content (db/pull (:db/id last-saved-editing-block)))
+                                     (state/get-edit-content)))]
+    ;; (js/console.log "editing-block contents" (:block/content last-saved-editing-block))
+    ;; (js/console.log "state/get-edit-content" (state/get-edit-content))
+    (when has-unsaved-edits
+      (outliner-tx/transact!
+       {:outliner-op :save-block}
+       (outliner-core/save-block! updated-editing-block)))))
 
 (defn paste-blocks
   "Given a vec of blocks, insert them into the target page.
@@ -2523,6 +2557,9 @@
         left? (= direction :left)
         right? (= direction :right)]
     (when (= input element)
+      (js/console.log "arrow-handler" (state/get-editor-action))
+      (when (state/get-editor-action)
+        (state/clear-editor-action!))
       (cond
         (not= selected-start selected-end)
         (if left?
@@ -2587,6 +2624,7 @@
         :else
         (delete-and-update input current-pos (inc current-pos))))))
 
+;; Pin: Need to update this for some new cases
 (defn keydown-backspace-handler
   [cut? e]
   (let [^js input (state/get-input)
@@ -2608,8 +2646,10 @@
         (util/stop e)
         (when cut?
           (js/document.execCommand "copy"))
-        (delete-and-update input selected-start selected-end))
+        (delete-and-update input selected-start selected-end)
+        (save-current-block-tx!)) ;; Save a transaction so undo history is saner
 
+      ;; TODO: Fix this doing wrong behavior if selection starts at beginning of block (only affects iOS, for some reason)
       (zero? current-pos)
       (do
         (util/stop e)
@@ -2798,6 +2838,7 @@
         :else
         nil))))
 
+;; Pin; this handles arbitrary key inputs when typing in a block
 (defn ^:large-vars/cleanup-todo keyup-handler
   [_state input input-id search-timeout]
   (fn [e key-code]
@@ -2832,14 +2873,16 @@
             blank-selected? (string/blank? (util/get-selected-text))
             non-enter-processed? (and is-processed? ;; #3251
                                       (not= code keycode/enter-code))  ;; #3459
-            editor-action (state/get-editor-action)]
+            editor-action (state/get-editor-action)] 
         (cond
+          ;; When you type something after /
           (and (= :commands (state/get-editor-action)) (not= k (state/get-editor-command-trigger)))
           (let [matched-commands (get-matched-commands input)]
             (if (seq matched-commands)
               (reset! commands/*matched-commands matched-commands)
               (state/clear-editor-action!)))
 
+          ;; When you type search text after < (and when you release shift after typing <)
           (and (= :block-commands editor-action) (not= key-code 188)) ; not <
           (let [matched-block-commands (get-matched-block-commands input)]
             (if (seq matched-block-commands)
@@ -2856,10 +2899,12 @@
                 (reset! commands/*matched-block-commands matched-block-commands))
               (state/clear-editor-action!)))
 
+          ;; When you type two spaces after a command character (may always just be handled by the above instead?)
           (and (contains? #{:commands :block-commands} (state/get-editor-action))
                (= c (util/nth-safe value (dec (dec current-pos))) " "))
           (state/clear-editor-action!)
 
+          ;; When you type a space after a #
           (and (state/get-editor-show-page-search-hashtag?)
                (= c " "))
           (state/clear-editor-action!)
@@ -2867,7 +2912,7 @@
           :else
           (when (and (not editor-action) (not non-enter-processed?))
             (cond
-              (and (not (contains? #{"ArrowDown" "ArrowLeft" "ArrowRight" "ArrowUp"} k))
+              (and (not (contains? #{"ArrowDown" "ArrowLeft" "ArrowRight" "ArrowUp" "Escape"} k))
                    (wrapped-by? input page-ref/left-brackets page-ref/right-brackets))
               (let [orig-pos (cursor/get-caret-pos input)
                     value (gobj/get input "value")
@@ -2878,9 +2923,11 @@
                     command-step (if (= \# (util/nth-safe value (dec square-pos)))
                                    :editor/search-page-hashtag
                                    :editor/search-page)]
+                (js/console.log "Wrapped by [[]], searching")
                 (commands/handle-step [command-step])
                 (state/set-editor-action-data! {:pos pos}))
 
+              ;; Handle non-ascii square brackets
               (and blank-selected?
                    (contains? keycode/left-square-brackets-keys k)
                    (= (:key last-key-code) k)
@@ -2892,6 +2939,7 @@
                 (commands/handle-step [:editor/search-page])
                 (state/set-editor-action-data! {:pos (cursor/get-caret-pos input)}))
 
+              ;; Handle non-ascii parentheses
               (and blank-selected?
                    (contains? keycode/left-paren-keys k)
                    (= (:key last-key-code) k)
@@ -2903,6 +2951,7 @@
                 (commands/handle-step [:editor/search-block :reference])
                 (state/set-editor-action-data! {:pos (cursor/get-caret-pos input)}))
 
+              ;; Handle non-ascii angle brackets
               (and (= "〈" c)
                    (= "《" (util/nth-safe value (dec (dec current-pos))))
                    (> current-pos 0))
@@ -3401,8 +3450,9 @@
   ([]
    (escape-editing true))
   ([select?]
+   (js/console.log (state/editing?) select?)
    (when (state/editing?)
-     (if select?
+     (if true
        (->> (:block/uuid (state/get-edit-block))
             select-block!)
        (state/clear-edit!)))))

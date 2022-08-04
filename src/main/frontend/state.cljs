@@ -595,6 +595,7 @@
 
 (defn set-editor-action!
   [value]
+  (js/console.trace "set-editor-action!")
   (set-state! :editor/action value))
 
 (defn set-editor-action-data!
@@ -1289,6 +1290,7 @@
 
 (defn set-editor-in-composition!
   [value]
+  (js/console.log "set-editor-in-composition!" value)
   (set-state! :editor/in-composition? value))
 
 (defn editor-in-composition?
