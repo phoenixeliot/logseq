@@ -12,7 +12,7 @@ test(
     await block.mustFill(identify_text)
 
     // paste current page's URL to another page, then redirect throught the URL
-    await page.click('.ui__dropdown-trigger')
+    await page.click('.ui__dropdown-trigger [data-dropdown-name="page-menu"]')
     await page.locator("text=Copy page URL").click()
     await createRandomPage(page)
     await block.mustFill("") // to enter editing mode
@@ -21,9 +21,11 @@ test(
     expect(await cursor_locator.inputValue()).toContain("page=" + page_title)
     await cursor_locator.press("Enter")
     if (!IsLinux) { // FIXME: support Logseq URL on Linux (XDG)
-        page.locator('a.external-link >> nth=0').click()
-        await page.waitForNavigation()
+        await page.locator('a.external-link >> nth=0').click()
+        // Wait for it to navigate to the referenced page
+        await page.waitForURL(new RegExp(`${page_title}`, 'ig'))
         await page.waitForTimeout(500)
+        await page.waitForTimeout(100)
         cursor_locator = await lastBlock(page)
         expect(await cursor_locator.inputValue()).toBe(identify_text)
     }
@@ -38,9 +40,9 @@ test(
     expect(await cursor_locator.inputValue()).toContain("block-id=")
     await cursor_locator.press("Enter")
     if (!IsLinux) { // FIXME: support Logseq URL on Linux (XDG)
-        page.locator('a.external-link >> nth=0').click()
-        await page.waitForNavigation()
-        await page.waitForTimeout(500)
+        await page.locator('a.external-link >> nth=0').click()
+        // Wait for it to navigate to the ref page
+        await page.waitForURL(new RegExp(`[a-f0-9]{8}(\-[a-f0-9]{4}){3}\-[a-f0-9]{12}`, 'ig'))
         cursor_locator = await lastBlock(page)
         expect(await cursor_locator.inputValue()).toBe(identify_text)
     }

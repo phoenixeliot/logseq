@@ -142,7 +142,7 @@
     (ui/dropdown-with-links
      (fn [{:keys [toggle-fn]}]
        [:button.button.icon
-        {:on-click toggle-fn}
+        {:on-click toggle-fn :data-dropdown-name "page-menu"}
         (ui/icon "dots" {:style {:fontSize ui/icon-size}})])
      (->>
       [(when (state/enable-editing?)
