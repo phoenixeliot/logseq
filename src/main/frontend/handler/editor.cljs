@@ -1291,10 +1291,6 @@
    (save-current-block! {}))
   ([{:keys [force? skip-properties? current-block] :as opts}]
    ;; non English input method
-  ;;  (js/console.log "Checking conditions for saving block")
-  ;;  (js/console.log "not state/get-editor-action" (not (state/editor-in-composition?)))
-  ;;  (js/console.log "(state/get-current-repo)" (state/get-current-repo))
-  ;;  (js/console.log "not (state/get-editor-action)" (not (state/get-editor-action)))
    (when-not (state/editor-in-composition?)
      (when (state/get-current-repo)
        (when-not (state/get-editor-action) ;; TODO: Maybe remove this
