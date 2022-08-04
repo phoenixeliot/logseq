@@ -211,3 +211,26 @@ test('copy and paste block after editing new block', async ({ page, block }) => 
 
   await expect(page.locator('text="Typed block"')).toHaveCount(1);
 })
+
+test('press escape when action menu is open, should close action menu only', async ({ page, block }) => {
+  for (const [commandTrigger, modalName] of [['[[', 'page-search'], ['/', 'commands']]) {
+    await createRandomPage(page)
+
+    // Open the action modal
+    await block.mustFill('text ')
+    await page.waitForTimeout(550)
+    for (const char of commandTrigger) {
+      await page.keyboard.type(char) // Type it one character at a time, because too quickly can fail to trigger it sometimes
+    }
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
+    await page.waitForTimeout(100)
+
+    // Press escape; should close action modal instead of exiting edit mode
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(100)
+    await expect(page.locator(`[data-modal-name="${modalName}"]`)).not.toBeVisible()
+    await page.waitForTimeout(1000)
+    expect(await block.isEditing()).toBe(true)
+  }
+})
