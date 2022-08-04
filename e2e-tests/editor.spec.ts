@@ -253,7 +253,7 @@ test('undo after starting an action should close the action menu', async ({ page
     await block.mustType('text1 ')
     await page.waitForTimeout(550)
     for (const char of commandTrigger) {
-      await page.keyboard.type(char)
+      await page.keyboard.type(char) // Type it one character at a time, because too quickly can fail to trigger it sometimes
     }
     await expect(page.locator(`[data-modal-name="${modalName}"]`)).toBeVisible()
 

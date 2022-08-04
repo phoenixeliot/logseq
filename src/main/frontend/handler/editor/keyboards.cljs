@@ -16,7 +16,7 @@
        (let [target (.-target e)]
          (cond
            (state/get-editor-action)
-           (state/clear-editor-action!)
+           (state/clear-editor-action!) ;; FIXME: This should probably be handled as a keydown handler in editor, but this handler intercepts Esc first
 
            (d/has-class? target "bottom-action") ;; FIXME: not particular case
            (.preventDefault e)
