@@ -25,7 +25,6 @@ test(
         // Wait for it to navigate to the referenced page
         await page.waitForURL(new RegExp(`${page_title}`, 'ig'))
         await page.waitForTimeout(500)
-        await page.waitForTimeout(100)
         cursor_locator = await lastBlock(page)
         expect(await cursor_locator.inputValue()).toBe(identify_text)
     }
@@ -42,7 +41,10 @@ test(
     if (!IsLinux) { // FIXME: support Logseq URL on Linux (XDG)
         await page.locator('a.external-link >> nth=0').click()
         // Wait for it to navigate to the ref page
+        console.log("before waitForUrl", await page.url())
         await page.waitForURL(new RegExp(`[a-f0-9]{8}(\-[a-f0-9]{4}){3}\-[a-f0-9]{12}`, 'ig'))
+        console.log("after waitForUrl", await page.url())
+        await page.waitForTimeout(500)
         cursor_locator = await lastBlock(page)
         expect(await cursor_locator.inputValue()).toBe(identify_text)
     }
